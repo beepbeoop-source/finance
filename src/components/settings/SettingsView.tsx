@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { CloudUpload, RefreshCw, Database, CheckCircle2, Activity, HeartPulse } from 'lucide-react'
+import { CloudUpload, RefreshCw, Database, CheckCircle2, Activity, HeartPulse, Copy, Check } from 'lucide-react'
 import { executeKeepAlivePing, getPingLogs, type PingLog } from '@/lib/supabaseKeepAlive'
 import { toast } from 'sonner'
 
@@ -22,6 +22,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 }) => {
   const [pingLogs, setPingLogs] = useState<PingLog[]>([])
   const [isPinging, setIsPinging] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const singlePingUrl = 'https://ejbiglcdrpgnmximfhjm.supabase.co/storage/v1/status'
 
   useEffect(() => {
     setPingLogs(getPingLogs())
@@ -33,7 +36,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       const res = await executeKeepAlivePing()
       setPingLogs(getPingLogs())
       if (res.success) {
-        toast.success(`Heartbeat ping succeeded (${res.latencyMs}ms)`)
+        toast.success(`Heartbeat ping acknowledged (${res.latencyMs}ms)`)
       } else {
         toast.error(`Heartbeat failed: ${res.message}`)
       }
@@ -42,13 +45,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   }
 
+  const copyUrl = () => {
+    navigator.clipboard.writeText(singlePingUrl)
+    setCopied(true)
+    toast.success('Ping URL copied to clipboard')
+    setTimeout(() => setCopied(false), 2000)
+  }
+
   return (
     <div className="space-y-6 max-w-3xl">
       {/* Header */}
       <div className="border-b pb-4">
         <h2 className="text-xl font-bold tracking-tight">Cloud & Database Sync</h2>
         <p className="text-xs text-muted-foreground">
-          Manage live database synchronization, cloud backups, and project keep-alive heartbeats.
+          Manage live database synchronization, cloud backups, and automated project keep-alive monitoring.
         </p>
       </div>
 
@@ -112,7 +122,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <div className="flex items-center justify-between">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
               <HeartPulse className="w-4 h-4 text-rose-500" />
-              Supabase Keep-Alive & Heartbeat
+              Supabase Keep-Alive & 24/7 Monitor
             </CardTitle>
             <Button
               variant="outline"
@@ -129,19 +139,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
         <CardContent className="p-6 space-y-4">
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Supabase free-tier projects automatically pause after 7 days of inactivity. The in-app heartbeat runs periodic pings to keep the project warm and responsive.
+            Supabase free-tier projects automatically pause after 7 days of inactivity. The in-app heartbeat runs periodic pings when the app is active, and the URL below keeps it warm 24/7 with zero configuration.
           </p>
 
-          <div className="rounded-xl border bg-muted/20 p-4 space-y-2 text-xs">
-            <div className="font-semibold text-foreground">External Uptime Monitoring (Recommended)</div>
+          <div className="rounded-xl border bg-muted/20 p-4 space-y-2.5 text-xs">
+            <div className="font-semibold text-foreground flex items-center justify-between">
+              <span>Single-URL Uptime Monitor (No Headers or Auth Needed)</span>
+              <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">
+                HTTP GET 200 OK
+              </span>
+            </div>
             <p className="text-muted-foreground leading-relaxed">
-              You can set up a free monitor on <strong>UptimeRobot</strong> or <strong>Cron-Job.org</strong> that pings your Supabase endpoint every 24 hours:
+              Paste this direct URL into <strong>UptimeRobot</strong>, <strong>Cron-Job.org</strong>, or any uptime ping service. It requires <strong>no headers, no apikey, and no POST body</strong>:
             </p>
-            <div className="p-2.5 rounded bg-background border font-mono text-[11px] text-primary break-all select-all">
-              https://ejbiglcdrpgnmximfhjm.supabase.co/rest/v1/rpc/ping_heartbeat
+            <div className="flex items-center gap-2 p-2 rounded bg-background border">
+              <code className="font-mono text-xs text-primary flex-1 break-all select-all">
+                {singlePingUrl}
+              </code>
+              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={copyUrl}>
+                {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+              </Button>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Method: <code>POST</code> (or <code>GET</code> query on <code>/rest/v1/keep_alive_pings?select=*</code>) with header <code>apikey: &lt;your-anon-key&gt;</code>.
+              Monitor Type: <strong>HTTP(s)</strong> • Method: <strong>GET</strong> • Interval: <strong>Every 1–6 hours</strong>.
             </p>
           </div>
 
