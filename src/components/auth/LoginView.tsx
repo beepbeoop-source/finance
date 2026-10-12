@@ -5,8 +5,7 @@ import {
   Eye,
   EyeOff,
   LogIn,
-  ShieldCheck,
-  UserPlus
+  ShieldCheck
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -15,16 +14,10 @@ import { Label } from '@/components/ui/label'
 
 interface LoginViewProps {
   onLogin: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
-  onSignUpAdmin: (email: string, password: string, name?: string) => Promise<{ success: boolean; error?: string }>
 }
 
-export const LoginView: React.FC<LoginViewProps> = ({
-  onLogin,
-  onSignUpAdmin
-}) => {
-  const [isSignUp, setIsSignUp] = useState(false)
+export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
   const [email, setEmail] = useState('')
-  const [name, setName] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -47,16 +40,9 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
     setIsLoading(true)
     try {
-      if (isSignUp) {
-        const res = await onSignUpAdmin(cleanEmail, password, name.trim())
-        if (!res.success) {
-          setErrorMessage(res.error || 'Failed to register admin account.')
-        }
-      } else {
-        const res = await onLogin(cleanEmail, password)
-        if (!res.success) {
-          setErrorMessage(res.error || 'Invalid credentials. Please verify your email & password.')
-        }
+      const res = await onLogin(cleanEmail, password)
+      if (!res.success) {
+        setErrorMessage(res.error || 'Invalid credentials. Access restricted to authorized administrators.')
       }
     } catch (err: any) {
       setErrorMessage(err.message || 'Authentication error occurred.')
@@ -77,7 +63,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
             Syed Global Group
           </h1>
           <p className="text-xs text-muted-foreground uppercase tracking-widest font-semibold">
-            Finance Management System
+            Finance Management Suite
           </p>
         </div>
 
@@ -85,17 +71,13 @@ export const LoginView: React.FC<LoginViewProps> = ({
         <Card className="border-border/60 shadow-lg">
           <CardHeader className="space-y-1 pb-4">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-lg font-bold">
-                {isSignUp ? 'Create Admin Account' : 'Admin Sign In'}
-              </CardTitle>
+              <CardTitle className="text-lg font-bold">Administrator Sign In</CardTitle>
               <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center">
                 <ShieldCheck className="w-4 h-4" />
               </div>
             </div>
             <CardDescription className="text-xs">
-              {isSignUp
-                ? 'Register your administrative manager profile in Supabase.'
-                : 'Enter your credentials to access company finances and reports.'}
+              Access is restricted to authorized administrative personnel.
             </CardDescription>
           </CardHeader>
 
@@ -107,18 +89,6 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 </div>
               )}
 
-              {isSignUp && (
-                <div className="space-y-1.5">
-                  <Label htmlFor="display-name">Display Name</Label>
-                  <Input
-                    id="display-name"
-                    placeholder="e.g. Syed Managing Director"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                  />
-                </div>
-              )}
-
               <div className="space-y-1.5">
                 <Label htmlFor="email">Email or Username</Label>
                 <div className="relative">
@@ -127,7 +97,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                     id="email"
                     type="text"
                     className="pl-9"
-                    placeholder="admin@syedglobal.com or admin"
+                    placeholder="admin@syedglobal.com or username"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -150,7 +120,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                   />
                   <button
                     type="button"
-                    className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground"
+                    className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground cursor-pointer"
                     onClick={() => setShowPassword(!showPassword)}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -161,28 +131,15 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
             <CardFooter className="flex flex-col gap-3 pt-2">
               <Button type="submit" className="w-full gap-2" disabled={isLoading}>
-                {isSignUp ? <UserPlus className="w-4 h-4" /> : <LogIn className="w-4 h-4" />}
-                {isLoading ? 'Authenticating...' : isSignUp ? 'Create Admin Account' : 'Sign In as Admin'}
+                <LogIn className="w-4 h-4" />
+                {isLoading ? 'Authenticating...' : 'Sign In as Administrator'}
               </Button>
-
-              <div className="flex items-center justify-center w-full text-xs text-muted-foreground pt-1">
-                <button
-                  type="button"
-                  className="hover:underline hover:text-foreground cursor-pointer"
-                  onClick={() => {
-                    setIsSignUp(!isSignUp)
-                    setErrorMessage('')
-                  }}
-                >
-                  {isSignUp ? 'Already have an account? Sign in' : "Need an admin account? Register"}
-                </button>
-              </div>
             </CardFooter>
           </form>
         </Card>
 
         <p className="text-center text-[11px] text-muted-foreground">
-          Protected with Supabase Auth JWT sessions & Row Level Security (RLS)
+          Protected with Supabase Auth RBAC & Row Level Security (RLS)
         </p>
       </div>
     </div>

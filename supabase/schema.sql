@@ -223,3 +223,145 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.ping_heartbeat() TO anon, authenticated;
+
+-- ==============================================================================
+-- 7. SECURE ADMIN USER MANAGEMENT RPCs (Only callable by authenticated Admins)
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION public.admin_create_app_user(
+  p_username TEXT,
+  p_password TEXT,
+  p_name TEXT,
+  p_role TEXT DEFAULT 'admin'
+)
+RETURNS JSON AS $$
+DECLARE
+  v_caller_role TEXT;
+  v_email TEXT;
+  v_user_id UUID;
+  clean_uname TEXT;
+  clean_name TEXT;
+  clean_role TEXT;
+BEGIN
+  -- Verify caller is admin
+  SELECT role INTO v_caller_role FROM public.user_profiles WHERE id = auth.uid();
+  IF v_caller_role != 'admin' THEN
+    RETURN json_build_object('success', false, 'error', 'Unauthorized. Only existing administrators can create new users.');
+  END IF;
+
+  clean_uname := LOWER(TRIM(p_username));
+  clean_name := TRIM(p_name);
+  clean_role := LOWER(TRIM(p_role));
+
+  IF clean_uname = '' THEN
+    RETURN json_build_object('success', false, 'error', 'Username or email cannot be empty.');
+  END IF;
+
+  IF LENGTH(p_password) < 6 THEN
+    RETURN json_build_object('success', false, 'error', 'Password must be at least 6 characters.');
+  END IF;
+
+  IF clean_role NOT IN ('admin', 'viewer') THEN
+    clean_role := 'admin';
+  END IF;
+
+  IF clean_name = '' THEN
+    clean_name := clean_uname;
+  END IF;
+
+  -- Handle full email vs username
+  IF clean_uname LIKE '%@%' THEN
+    v_email := clean_uname;
+    clean_uname := split_part(clean_uname, '@', 1);
+  ELSE
+    v_email := clean_uname || '@syedglobal.com';
+  END IF;
+
+  -- Check if user already exists
+  SELECT id INTO v_user_id FROM public.user_profiles WHERE username = clean_uname;
+  IF FOUND THEN
+    RETURN json_build_object('success', false, 'error', 'A user with this username already exists.');
+  END IF;
+
+  SELECT id INTO v_user_id FROM auth.users WHERE email = v_email;
+  IF FOUND THEN
+    RETURN json_build_object('success', false, 'error', 'A user with this email address already exists.');
+  END IF;
+
+  -- Create user in auth.users
+  INSERT INTO auth.users (
+    instance_id,
+    id,
+    aud,
+    role,
+    email,
+    encrypted_password,
+    email_confirmed_at,
+    raw_app_meta_data,
+    raw_user_meta_data,
+    created_at,
+    updated_at
+  )
+  VALUES (
+    '00000000-0000-0000-0000-000000000000',
+    gen_random_uuid(),
+    'authenticated',
+    'authenticated',
+    v_email,
+    crypt(p_password, gen_salt('bf')),
+    NOW(),
+    '{"provider":"email","providers":["email"]}'::jsonb,
+    json_build_object('username', clean_uname, 'display_name', clean_name, 'role', clean_role)::jsonb,
+    NOW(),
+    NOW()
+  )
+  RETURNING id INTO v_user_id;
+
+  RETURN json_build_object(
+    'success', true,
+    'user', json_build_object(
+      'id', v_user_id,
+      'username', clean_uname,
+      'email', v_email,
+      'displayName', clean_name,
+      'role', clean_role
+    )
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION public.admin_create_app_user(TEXT, TEXT, TEXT, TEXT) TO authenticated;
+
+-- List all users (Only admin can view)
+CREATE OR REPLACE FUNCTION public.app_list_users()
+RETURNS TABLE (
+  id UUID,
+  email TEXT,
+  username TEXT,
+  display_name TEXT,
+  role TEXT,
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ
+) AS $$
+DECLARE
+  v_caller_role TEXT;
+BEGIN
+  SELECT user_profiles.role INTO v_caller_role FROM public.user_profiles WHERE user_profiles.id = auth.uid();
+  IF v_caller_role != 'admin' THEN
+    RAISE EXCEPTION 'Unauthorized: Only admins can list users';
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    u.id,
+    u.email,
+    u.username,
+    u.display_name,
+    u.role,
+    u.created_at,
+    u.updated_at
+  FROM public.user_profiles u
+  ORDER BY u.role ASC, u.display_name ASC;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION public.app_list_users() TO authenticated;

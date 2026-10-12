@@ -53,7 +53,7 @@ export function useAuth() {
         }
       }
 
-      // Fallback if profile row is not yet created in public.user_profiles
+      // Fallback
       return {
         id: userId,
         email: email || '',
@@ -122,12 +122,12 @@ export function useAuth() {
     }
   }, [fetchProfile, persistProfile])
 
-  // Sign In function
+  // Sign In function (Strict authentication only - no public account creation)
   const login = async (emailOrUsername: string, password: string): Promise<{ success: boolean; error?: string }> => {
     if (!isSupabaseConfigured()) {
       return {
         success: false,
-        error: 'Supabase URL and Anon Key are not configured yet. Configure them in Cloud Settings first.',
+        error: 'Supabase is not configured yet.',
       }
     }
 
@@ -165,57 +165,69 @@ export function useAuth() {
     }
   }
 
-  // Sign Up / Register first admin function
-  const signUpAdmin = async (emailOrUsername: string, password: string, displayName?: string): Promise<{ success: boolean; error?: string }> => {
-    if (!isSupabaseConfigured()) {
-      return {
-        success: false,
-        error: 'Supabase URL and Anon Key are not configured yet.',
-      }
-    }
-
+  // Admin-Only Function: Create a new user (Only callable by authenticated Admin)
+  const adminCreateUser = async (
+    username: string,
+    password: string,
+    displayName: string,
+    role: UserRole = 'admin'
+  ): Promise<{ success: boolean; error?: string }> => {
     const supabase = getSupabase()
-    if (!supabase) return { success: false, error: 'Supabase not initialized' }
+    if (!supabase) return { success: false, error: 'Database is not connected.' }
 
     try {
-      setIsLoading(true)
-      const clean = emailOrUsername.trim()
-      const email = clean.includes('@') ? clean : `${clean}@syedglobal.com`
-
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            display_name: displayName || clean.split('@')[0],
-            role: 'admin',
-          }
-        }
+      const { data, error } = await supabase.rpc('admin_create_app_user', {
+        p_username: username.trim(),
+        p_password: password,
+        p_name: displayName.trim(),
+        p_role: role
       })
 
       if (error) return { success: false, error: error.message }
+      if (data && !data.success) return { success: false, error: data.error || 'Failed to create user' }
 
-      if (data.user) {
-        // Upsert into user_profiles
-        await supabase.from('user_profiles').upsert({
-          id: data.user.id,
-          email,
-          username: clean.split('@')[0],
-          display_name: displayName || clean.split('@')[0],
-          role: 'admin'
-        })
-
-        const prof = await fetchProfile(data.user.id, email)
-        persistProfile(prof)
-        toast.success('Admin account created and logged in!')
-        return { success: true }
-      }
-
+      toast.success(`User @${username} created successfully!`)
       return { success: true }
     } catch (err: any) {
-      return { success: false, error: err.message || 'Signup failed' }
-    } finally {
-      setIsLoading(false)
+      const msg = err instanceof Error ? err.message : 'Failed to create user'
+      return { success: false, error: msg }
+    }
+  }
+
+  // Fetch list of app users (Admin only)
+  const fetchUsersList = async (): Promise<UserProfile[]> => {
+    const supabase = getSupabase()
+    if (!supabase) return []
+
+    try {
+      const { data, error } = await supabase.rpc('app_list_users')
+      if (!error && data && Array.isArray(data)) {
+        return data.map((r: any) => ({
+          id: r.id,
+          email: r.email,
+          username: r.username,
+          displayName: r.display_name || r.username,
+          role: (r.role as UserRole) || 'admin',
+          createdAt: r.created_at,
+          updatedAt: r.updated_at
+        }))
+      }
+
+      const { data: directData } = await supabase.from('user_profiles').select('*')
+      if (directData) {
+        return directData.map((r: any) => ({
+          id: r.id,
+          email: r.email,
+          username: r.username,
+          displayName: r.display_name || r.username,
+          role: (r.role as UserRole) || 'admin',
+          createdAt: r.created_at,
+          updatedAt: r.updated_at
+        }))
+      }
+      return []
+    } catch {
+      return []
     }
   }
 
@@ -236,7 +248,8 @@ export function useAuth() {
     isAuthenticated: Boolean(profile),
     isAdmin: profile?.role === 'admin',
     login,
-    signUpAdmin,
+    adminCreateUser,
+    fetchUsersList,
     logout,
   }
 }

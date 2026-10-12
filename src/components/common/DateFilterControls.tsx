@@ -9,18 +9,18 @@ interface DateFilterControlsProps {
 
 export const DateFilterControls: React.FC<DateFilterControlsProps> = ({ filter, onChange }) => {
   return (
-    <div className="flex flex-wrap items-center gap-2 bg-card p-1 rounded-lg border shadow-xs text-sm">
+    <div className="flex items-center gap-1.5 bg-card/95 p-1 rounded-lg border shadow-xs text-xs">
       <select
         value={filter.mode}
         onChange={(e) => {
           const mode = e.target.value as 'month' | 'range'
           onChange({ ...filter, mode })
         }}
-        className="h-8 rounded-md border border-input bg-background px-2.5 text-xs font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer"
+        className="h-7 sm:h-8 rounded-md border border-input bg-background px-2 text-[11px] sm:text-xs font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer"
         aria-label="Date filter mode"
       >
         <option value="month">Monthly</option>
-        <option value="range">Custom range</option>
+        <option value="range">Range</option>
       </select>
 
       {filter.mode === 'month' ? (
@@ -39,24 +39,24 @@ export const DateFilterControls: React.FC<DateFilterControlsProps> = ({ filter, 
               endDate: `${month}-${String(daysInMonth).padStart(2, '0')}`
             })
           }}
-          className="h-8 w-36 text-xs bg-background"
+          className="h-7 sm:h-8 w-28 sm:w-36 text-[11px] sm:text-xs bg-background px-1.5 sm:px-3 font-medium"
           aria-label="Filter month"
         />
       ) : (
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1">
           <Input
             type="date"
             value={filter.startDate}
             onChange={(e) => onChange({ ...filter, startDate: e.target.value })}
-            className="h-8 w-32 text-xs bg-background"
+            className="h-7 sm:h-8 w-24 sm:w-32 text-[10px] sm:text-xs bg-background px-1.5"
             aria-label="Start date"
           />
-          <span className="text-xs text-muted-foreground font-medium">to</span>
+          <span className="text-[10px] text-muted-foreground font-medium">to</span>
           <Input
             type="date"
             value={filter.endDate}
             onChange={(e) => onChange({ ...filter, endDate: e.target.value })}
-            className="h-8 w-32 text-xs bg-background"
+            className="h-7 sm:h-8 w-24 sm:w-32 text-[10px] sm:text-xs bg-background px-1.5"
             aria-label="End date"
           />
         </div>

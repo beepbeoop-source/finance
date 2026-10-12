@@ -45,9 +45,11 @@ export function App() {
   const {
     user,
     isAuthenticated,
+    isAdmin,
     isLoading: isAuthLoading,
     login,
-    signUpAdmin,
+    adminCreateUser,
+    fetchUsersList,
     logout
   } = useAuth()
 
@@ -93,15 +95,12 @@ export function App() {
     )
   }
 
-  // If unauthenticated, show Admin Login
+  // If unauthenticated, show Administrator Login only
   if (!isAuthenticated) {
     return (
       <>
         <Toaster position="top-right" richColors closeButton />
-        <LoginView
-          onLogin={login}
-          onSignUpAdmin={signUpAdmin}
-        />
+        <LoginView onLogin={login} />
       </>
     )
   }
@@ -125,7 +124,7 @@ export function App() {
       />
 
       {/* Main Content Area */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex flex-1 flex-col overflow-hidden min-w-0">
         <Navbar
           currentPage={currentPage}
           onOpenAddModal={handleOpenAddModal}
@@ -138,7 +137,7 @@ export function App() {
           }
         />
 
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+        <main className="flex-1 overflow-y-auto px-3 py-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto pb-safe">
           {isDataLoading ? (
             <div className="h-64 flex flex-col items-center justify-center gap-3">
               <Loader2 className="w-6 h-6 animate-spin text-primary" />
@@ -207,6 +206,9 @@ export function App() {
                   syncStatus={syncStatus}
                   isSyncing={isSyncing}
                   recordCount={records.length}
+                  isAdmin={isAdmin}
+                  onAdminCreateUser={adminCreateUser}
+                  onFetchUsers={fetchUsersList}
                 />
               )}
             </>
