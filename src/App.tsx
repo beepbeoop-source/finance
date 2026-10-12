@@ -16,8 +16,15 @@ import { EntryModal } from '@/components/modals/EntryModal'
 import { LoginView } from '@/components/auth/LoginView'
 import { Toaster } from 'sonner'
 import { Loader2 } from 'lucide-react'
+import { startKeepAliveTimer, stopKeepAliveTimer } from '@/lib/supabaseKeepAlive'
 
 export function App() {
+  // Start keep-alive heartbeats on app mount
+  React.useEffect(() => {
+    startKeepAliveTimer()
+    return () => stopKeepAliveTimer()
+  }, [])
+
   const {
     records,
     categories,

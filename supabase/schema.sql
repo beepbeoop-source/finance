@@ -186,3 +186,40 @@ CREATE POLICY "Admins can delete Finance Assets"
   ON storage.objects FOR DELETE
   TO authenticated, anon
   USING (bucket_id = 'finance-assets');
+
+-- ==============================================================================
+-- 6. KEEP-ALIVE & HEARTBEAT SYSTEM (Prevents Free-Tier Project Pausing)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.keep_alive_pings (
+  id TEXT PRIMARY KEY DEFAULT 'primary_heartbeat',
+  last_ping TIMESTAMPTZ DEFAULT NOW(),
+  client_info TEXT DEFAULT 'finance_app',
+  ping_count BIGINT DEFAULT 1
+);
+
+ALTER TABLE public.keep_alive_pings ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public keep_alive all" ON public.keep_alive_pings;
+CREATE POLICY "Public keep_alive all"
+  ON public.keep_alive_pings FOR ALL
+  TO anon, authenticated
+  USING (true)
+  WITH CHECK (true);
+
+-- Heartbeat function callable by UptimeRobot / Cron pings
+CREATE OR REPLACE FUNCTION public.ping_heartbeat()
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  INSERT INTO public.keep_alive_pings (id, last_ping, client_info, ping_count)
+  VALUES ('primary_heartbeat', NOW(), 'uptime_robot_heartbeat', 1)
+  ON CONFLICT (id) DO UPDATE
+  SET last_ping = NOW(),
+      ping_count = public.keep_alive_pings.ping_count + 1;
+  RETURN json_build_object('status', 'ok', 'timestamp', NOW());
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.ping_heartbeat() TO anon, authenticated;
