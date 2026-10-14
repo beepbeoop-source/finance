@@ -2,6 +2,13 @@ import React, { useState, useMemo } from 'react'
 import type { Transaction, DateFilterConfig, CompanyDetails } from '@/types/finance'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { formatINR } from '@/lib/utils'
 import { Printer } from 'lucide-react'
 
@@ -20,6 +27,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 }) => {
   const [typeFilter, setTypeFilter] = useState<'all' | 'income' | 'expense'>('all')
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
+  const [reportSort, setReportSort] = useState<string>('amount-desc')
 
   // Filter records within date range
   const periodRecords = useMemo(() => {
@@ -35,26 +43,35 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     })
   }, [periodRecords, typeFilter, selectedCategory])
 
+  const sortItems = (items: [string, number][], sortKey: string) => {
+    const copy = [...items]
+    if (sortKey === 'amount-asc') copy.sort((a, b) => a[1] - b[1])
+    else if (sortKey === 'name-asc') copy.sort((a, b) => a[0].localeCompare(b[0]))
+    else if (sortKey === 'name-desc') copy.sort((a, b) => b[0].localeCompare(a[0]))
+    else copy.sort((a, b) => b[1] - a[1]) // amount-desc
+    return copy
+  }
+
   // Breakdown tables
   const incomeList = useMemo(() => {
     const incMap = new Map<string, number>()
     filtered
       .filter((r) => r.type === 'income')
       .forEach((r) => incMap.set(r.category, (incMap.get(r.category) || 0) + Number(r.amount || 0)))
-    const list = Array.from(incMap.entries()).sort((a, b) => b[1] - a[1])
+    const list = sortItems(Array.from(incMap.entries()), reportSort)
     const total = list.reduce((sum, item) => sum + item[1], 0)
     return { list, total }
-  }, [filtered])
+  }, [filtered, reportSort])
 
   const expenseList = useMemo(() => {
     const expMap = new Map<string, number>()
     filtered
       .filter((r) => r.type === 'expense')
       .forEach((r) => expMap.set(r.category, (expMap.get(r.category) || 0) + Number(r.amount || 0)))
-    const list = Array.from(expMap.entries()).sort((a, b) => b[1] - a[1])
+    const list = sortItems(Array.from(expMap.entries()), reportSort)
     const total = list.reduce((sum, item) => sum + item[1], 0)
     return { list, total }
-  }, [filtered])
+  }, [filtered, reportSort])
 
   const netBalance = incomeList.total - expenseList.total
 
@@ -74,28 +91,60 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value as any)}
-            className="h-8 rounded-md border border-input bg-background px-2.5 text-xs font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          >
-            <option value="all">All Types</option>
-            <option value="income">Income Only</option>
-            <option value="expense">Expense Only</option>
-          </select>
+          {/* Type Filter Select */}
+          <div className="w-[125px]">
+            <Select
+              value={typeFilter}
+              onValueChange={(val) => val && setTypeFilter(val as 'all' | 'income' | 'expense')}
+            >
+              <SelectTrigger className="w-full h-8 text-xs font-medium bg-background">
+                <SelectValue placeholder="All Types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="income">Income Only</SelectItem>
+                <SelectItem value="expense">Expense Only</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-          <select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-            className="h-8 rounded-md border border-input bg-background px-2.5 text-xs font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring max-w-[160px]"
-          >
-            <option value="all">All Categories</option>
-            {categories.all.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
+          {/* Category Filter Select */}
+          <div className="w-[150px]">
+            <Select
+              value={selectedCategory}
+              onValueChange={(val) => val && setSelectedCategory(val)}
+            >
+              <SelectTrigger className="w-full h-8 text-xs font-medium bg-background">
+                <SelectValue placeholder="All Categories" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {categories.all.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Sort Select */}
+          <div className="w-[160px]">
+            <Select
+              value={reportSort}
+              onValueChange={(val) => val && setReportSort(val)}
+            >
+              <SelectTrigger className="w-full h-8 text-xs font-medium bg-background">
+                <SelectValue placeholder="Sort summary" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="amount-desc">Amount: High-Low</SelectItem>
+                <SelectItem value="amount-asc">Amount: Low-High</SelectItem>
+                <SelectItem value="name-asc">Alphabetical (A-Z)</SelectItem>
+                <SelectItem value="name-desc">Alphabetical (Z-A)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
           <Button size="sm" className="h-8 text-xs gap-1.5" onClick={handlePrint}>
             <Printer className="w-3.5 h-3.5" />

@@ -3,6 +3,13 @@ import type { Transaction, TransactionType } from '@/types/finance'
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogClose } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 interface EntryModalProps {
   open: boolean
@@ -74,14 +81,18 @@ export const EntryModal: React.FC<EntryModalProps> = ({
             <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
               Entry Type
             </label>
-            <select
+            <Select
               value={type}
-              onChange={(e) => setType(e.target.value as TransactionType)}
-              className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              onValueChange={(val) => val && setType(val as TransactionType)}
             >
-              <option value="income">Income (+)</option>
-              <option value="expense">Expense (-)</option>
-            </select>
+              <SelectTrigger className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm">
+                <SelectValue placeholder="Select type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="income">Income (+)</SelectItem>
+                <SelectItem value="expense">Expense (-)</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div>

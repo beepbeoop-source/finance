@@ -365,3 +365,103 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 GRANT EXECUTE ON FUNCTION public.app_list_users() TO authenticated;
+
+-- ==============================================================================
+-- 8. ADMIN PASSWORD RESET & USER DELETION / ROLE UPDATE RPCs
+-- ==============================================================================
+
+-- Admin Reset Any User's Password
+CREATE OR REPLACE FUNCTION public.admin_reset_user_password(
+  p_user_id UUID,
+  p_new_password TEXT
+)
+RETURNS JSON AS $$
+DECLARE
+  v_caller_role TEXT;
+BEGIN
+  -- Verify caller is admin
+  SELECT role INTO v_caller_role FROM public.user_profiles WHERE id = auth.uid();
+  IF v_caller_role != 'admin' THEN
+    RETURN json_build_object('success', false, 'error', 'Unauthorized: Only admins can reset passwords.');
+  END IF;
+
+  IF LENGTH(p_new_password) < 6 THEN
+    RETURN json_build_object('success', false, 'error', 'Password must be at least 6 characters.');
+  END IF;
+
+  UPDATE auth.users
+  SET encrypted_password = crypt(p_new_password, gen_salt('bf')),
+      updated_at = NOW()
+  WHERE id = p_user_id;
+
+  RETURN json_build_object('success', true, 'message', 'Password reset successfully.');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION public.admin_reset_user_password(UUID, TEXT) TO authenticated;
+
+-- Admin Delete User Account
+CREATE OR REPLACE FUNCTION public.admin_delete_app_user(
+  p_user_id UUID
+)
+RETURNS JSON AS $$
+DECLARE
+  v_caller_role TEXT;
+  v_target_role TEXT;
+BEGIN
+  -- Verify caller is admin
+  SELECT role INTO v_caller_role FROM public.user_profiles WHERE id = auth.uid();
+  IF v_caller_role != 'admin' THEN
+    RETURN json_build_object('success', false, 'error', 'Unauthorized: Only administrators can delete users.');
+  END IF;
+
+  -- Prevent self-deletion
+  IF p_user_id = auth.uid() THEN
+    RETURN json_build_object('success', false, 'error', 'Cannot delete your own active administrator account.');
+  END IF;
+
+  -- Delete from user_profiles & auth.users (cascades)
+  DELETE FROM public.user_profiles WHERE id = p_user_id;
+  DELETE FROM auth.users WHERE id = p_user_id;
+
+  RETURN json_build_object('success', true, 'message', 'User account deleted successfully.');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION public.admin_delete_app_user(UUID) TO authenticated;
+
+-- Admin Update User Role
+CREATE OR REPLACE FUNCTION public.admin_update_user_role(
+  p_user_id UUID,
+  p_new_role TEXT
+)
+RETURNS JSON AS $$
+DECLARE
+  v_caller_role TEXT;
+  clean_role TEXT;
+BEGIN
+  SELECT role INTO v_caller_role FROM public.user_profiles WHERE id = auth.uid();
+  IF v_caller_role != 'admin' THEN
+    RETURN json_build_object('success', false, 'error', 'Unauthorized: Only administrators can update roles.');
+  END IF;
+
+  clean_role := LOWER(TRIM(p_new_role));
+  IF clean_role NOT IN ('admin', 'staff') THEN
+    RETURN json_build_object('success', false, 'error', 'Invalid role. Must be admin or staff.');
+  END IF;
+
+  UPDATE public.user_profiles
+  SET role = clean_role,
+      updated_at = NOW()
+  WHERE id = p_user_id;
+
+  UPDATE auth.users
+  SET raw_user_meta_data = jsonb_set(COALESCE(raw_user_meta_data, '{}'::jsonb), '{role}', to_jsonb(clean_role)),
+      updated_at = NOW()
+  WHERE id = p_user_id;
+
+  RETURN json_build_object('success', true, 'message', 'Role updated successfully.');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION public.admin_update_user_role(UUID, TEXT) TO authenticated;

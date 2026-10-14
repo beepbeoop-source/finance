@@ -45,9 +45,9 @@ export function useAuth() {
         return {
           id: data.id,
           email: data.email || email || '',
-          username: data.username || (email ? email.split('@')[0] : 'admin'),
-          displayName: data.display_name || 'Admin',
-          role: (data.role as UserRole) || 'admin',
+          username: data.username || (email ? email.split('@')[0] : 'user'),
+          displayName: data.display_name || 'Staff User',
+          role: (data.role as UserRole) || 'staff',
           createdAt: data.created_at,
           updatedAt: data.updated_at
         }
@@ -122,7 +122,7 @@ export function useAuth() {
     }
   }, [fetchProfile, persistProfile])
 
-  // Sign In function (Strict authentication only - no public account creation)
+  // Sign In function
   const login = async (emailOrUsername: string, password: string): Promise<{ success: boolean; error?: string }> => {
     if (!isSupabaseConfigured()) {
       return {
@@ -153,7 +153,7 @@ export function useAuth() {
       if (data.user) {
         const prof = await fetchProfile(data.user.id, data.user.email)
         persistProfile(prof)
-        toast.success(`Welcome back, ${prof?.displayName || 'Admin'}!`)
+        toast.success(`Welcome back, ${prof?.displayName || 'User'}!`)
         return { success: true }
       }
 
@@ -165,12 +165,12 @@ export function useAuth() {
     }
   }
 
-  // Admin-Only Function: Create a new user (Only callable by authenticated Admin)
+  // 1. Admin Create User (admin or staff)
   const adminCreateUser = async (
     username: string,
     password: string,
     displayName: string,
-    role: UserRole = 'admin'
+    role: UserRole = 'staff'
   ): Promise<{ success: boolean; error?: string }> => {
     const supabase = getSupabase()
     if (!supabase) return { success: false, error: 'Database is not connected.' }
@@ -186,7 +186,7 @@ export function useAuth() {
       if (error) return { success: false, error: error.message }
       if (data && !data.success) return { success: false, error: data.error || 'Failed to create user' }
 
-      toast.success(`User @${username} created successfully!`)
+      toast.success(`User @${username} (${role}) created successfully!`)
       return { success: true }
     } catch (err: any) {
       const msg = err instanceof Error ? err.message : 'Failed to create user'
@@ -194,7 +194,94 @@ export function useAuth() {
     }
   }
 
-  // Fetch list of app users (Admin only)
+  // 2. Admin Change User's Password
+  const adminChangePassword = async (
+    targetUserId: string,
+    newPassword: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    const supabase = getSupabase()
+    if (!supabase) return { success: false, error: 'Database is not configured' }
+
+    try {
+      const { data, error: rpcErr } = await supabase.rpc('admin_reset_user_password', {
+        p_user_id: targetUserId,
+        p_new_password: newPassword
+      })
+
+      if (rpcErr) return { success: false, error: rpcErr.message }
+      if (data && !data.success) return { success: false, error: data.error || 'Failed to update password' }
+
+      toast.success('Password updated successfully')
+      return { success: true }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to update password'
+      return { success: false, error: msg }
+    }
+  }
+
+  // 3. Admin Delete User
+  const adminDeleteUser = async (targetUserId: string): Promise<{ success: boolean; error?: string }> => {
+    const supabase = getSupabase()
+    if (!supabase) return { success: false, error: 'Database is not configured' }
+
+    try {
+      const { data, error: rpcErr } = await supabase.rpc('admin_delete_app_user', {
+        p_user_id: targetUserId
+      })
+
+      if (rpcErr) return { success: false, error: rpcErr.message }
+      if (data && !data.success) return { success: false, error: data.error || 'Failed to delete user' }
+
+      toast.success('User account removed')
+      return { success: true }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to delete user'
+      return { success: false, error: msg }
+    }
+  }
+
+  // 4. Admin Update User Role
+  const adminUpdateUserRole = async (targetUserId: string, newRole: UserRole): Promise<{ success: boolean; error?: string }> => {
+    const supabase = getSupabase()
+    if (!supabase) return { success: false, error: 'Database is not configured' }
+
+    try {
+      const { data, error: rpcErr } = await supabase.rpc('admin_update_user_role', {
+        p_user_id: targetUserId,
+        p_new_role: newRole
+      })
+
+      if (rpcErr) return { success: false, error: rpcErr.message }
+      if (data && !data.success) return { success: false, error: data.error || 'Failed to update role' }
+
+      toast.success(`Role updated to ${newRole}`)
+      return { success: true }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to update role'
+      return { success: false, error: msg }
+    }
+  }
+
+  // 5. Change My Own Password
+  const changeMyPassword = async (newPassword: string): Promise<{ success: boolean; error?: string }> => {
+    const supabase = getSupabase()
+    if (!supabase) return { success: false, error: 'Database is not configured' }
+
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
+      })
+
+      if (error) return { success: false, error: error.message }
+      toast.success('Your password has been changed')
+      return { success: true }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to update password'
+      return { success: false, error: msg }
+    }
+  }
+
+  // 6. Fetch list of app users (Admin only)
   const fetchUsersList = async (): Promise<UserProfile[]> => {
     const supabase = getSupabase()
     if (!supabase) return []
@@ -207,7 +294,7 @@ export function useAuth() {
           email: r.email,
           username: r.username,
           displayName: r.display_name || r.username,
-          role: (r.role as UserRole) || 'admin',
+          role: (r.role as UserRole) || 'staff',
           createdAt: r.created_at,
           updatedAt: r.updated_at
         }))
@@ -220,7 +307,7 @@ export function useAuth() {
           email: r.email,
           username: r.username,
           displayName: r.display_name || r.username,
-          role: (r.role as UserRole) || 'admin',
+          role: (r.role as UserRole) || 'staff',
           createdAt: r.created_at,
           updatedAt: r.updated_at
         }))
@@ -249,6 +336,10 @@ export function useAuth() {
     isAdmin: profile?.role === 'admin',
     login,
     adminCreateUser,
+    adminChangePassword,
+    adminDeleteUser,
+    adminUpdateUserRole,
+    changeMyPassword,
     fetchUsersList,
     logout,
   }

@@ -46,7 +46,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       case 'company':
         return 'Company Details'
       case 'settings':
-        return 'Cloud & Sync'
+        return 'Settings & Users'
       default:
         return 'Overview'
     }
@@ -120,7 +120,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </div>
 
-      {/* Mobile Sub-bar for Date Controls (Clean separate row so it doesn't collide with title or buttons) */}
+      {/* Mobile Sub-bar for Date Controls */}
       {dateFilterControls && (
         <div className="flex sm:hidden items-center justify-between pb-2.5 pt-0.5 overflow-x-auto">
           {dateFilterControls}

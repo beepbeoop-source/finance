@@ -5,7 +5,27 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatINR } from '@/lib/utils'
-import { TrendingUp, TrendingDown, Wallet, Layers, ArrowRight, Download, Edit2, Trash2 } from 'lucide-react'
+import {
+  TrendingUp,
+  TrendingDown,
+  Wallet,
+  Layers,
+  ArrowRight,
+  Download,
+  Edit2,
+  Trash2,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  X,
+} from 'lucide-react'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 interface OverviewViewProps {
   records: Transaction[]
@@ -24,6 +44,9 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = React.useState('')
   const [typeFilter, setTypeFilter] = React.useState<'all' | 'income' | 'expense'>('all')
+  const [sortField, setSortField] = React.useState<'date' | 'amount' | 'category'>('date')
+  const [sortOrder, setSortOrder] = React.useState<'asc' | 'desc'>('desc')
+  const [expenseSort, setExpenseSort] = React.useState<'amount' | 'name'>('amount')
 
   // Filter records within date range
   const periodRecords = useMemo(() => {
@@ -46,17 +69,22 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
     }
   }, [periodRecords])
 
-  // Top Expense Categories
+  // Top Expense Categories with sorting
   const topExpenseCategories = useMemo(() => {
     const map = new Map<string, number>()
     periodRecords
       .filter((r) => r.type === 'expense')
       .forEach((r) => map.set(r.category, (map.get(r.category) || 0) + Number(r.amount || 0)))
 
-    const sorted = Array.from(map.entries()).sort((a, b) => b[1] - a[1])
-    const max = sorted[0]?.[1] || 1
-    return { list: sorted.slice(0, 5), max }
-  }, [periodRecords])
+    const entries = Array.from(map.entries())
+    if (expenseSort === 'name') {
+      entries.sort((a, b) => a[0].localeCompare(b[0]))
+    } else {
+      entries.sort((a, b) => b[1] - a[1])
+    }
+    const max = Math.max(1, ...Array.from(map.values()))
+    return { list: entries.slice(0, 5), max }
+  }, [periodRecords, expenseSort])
 
   // Daily Bins for Chart
   const chartData = useMemo(() => {
@@ -105,16 +133,32 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
     return { bins, maxVal }
   }, [periodRecords, filter.startDate, filter.endDate])
 
-  // Filtered recent transactions
+  // Sort toggle for Recent Transactions table
+  const handleSortToggle = (field: 'date' | 'amount' | 'category') => {
+    if (sortField === field) {
+      setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortField(field)
+      setSortOrder(field === 'amount' ? 'desc' : field === 'date' ? 'desc' : 'asc')
+    }
+  }
+
+  // Filtered recent transactions with flexible sorting
   const filteredTransactions = useMemo(() => {
     return periodRecords
       .filter((r) => {
         if (typeFilter !== 'all' && r.type !== typeFilter) return false
-        if (searchTerm && !r.category.toLowerCase().includes(searchTerm.toLowerCase())) return false
+        if (searchTerm && !r.category.toLowerCase().includes(searchTerm.toLowerCase()) && !(r.note && r.note.toLowerCase().includes(searchTerm.toLowerCase()))) return false
         return true
       })
-      .sort((a, b) => b.date.localeCompare(a.date))
-  }, [periodRecords, typeFilter, searchTerm])
+      .sort((a, b) => {
+        let cmp = 0
+        if (sortField === 'date') cmp = a.date.localeCompare(b.date)
+        else if (sortField === 'amount') cmp = Number(a.amount) - Number(b.amount)
+        else if (sortField === 'category') cmp = a.category.localeCompare(b.category)
+        return sortOrder === 'asc' ? cmp : -cmp
+      })
+  }, [periodRecords, typeFilter, searchTerm, sortField, sortOrder])
 
   const exportCSV = () => {
     const rows = [
@@ -275,15 +319,31 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               <CardTitle className="text-sm sm:text-base font-semibold">Top Expenses</CardTitle>
               <p className="text-xs text-muted-foreground">Where the money is going</p>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs h-7 gap-1 px-2"
-              onClick={() => onNavigate('categories')}
-            >
-              View all
-              <ArrowRight className="w-3 h-3" />
-            </Button>
+            <div className="flex items-center gap-1.5">
+              <div className="w-[110px]">
+                <Select
+                  value={expenseSort}
+                  onValueChange={(val) => val && setExpenseSort(val as 'amount' | 'name')}
+                >
+                  <SelectTrigger className="h-7 text-[11px] bg-background">
+                    <SelectValue placeholder="Sort" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="amount">By Amount</SelectItem>
+                    <SelectItem value="name">By Name</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs h-7 gap-1 px-2"
+                onClick={() => onNavigate('categories')}
+              >
+                View all
+                <ArrowRight className="w-3 h-3" />
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="p-4 sm:p-6 pt-0 flex-1 flex flex-col justify-between">
             {topExpenseCategories.list.length === 0 ? (
@@ -328,21 +388,66 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             <p className="text-xs text-muted-foreground">Latest entries for the selected period</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Input
-              placeholder="Search category..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="h-8 w-32 sm:w-48 text-xs"
-            />
-            <select
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value as any)}
-              className="h-8 rounded-md border border-input bg-background px-2 text-xs font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            >
-              <option value="all">All</option>
-              <option value="income">Income</option>
-              <option value="expense">Expense</option>
-            </select>
+            <div className="relative">
+              <Input
+                placeholder="Search category or note..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="h-8 w-32 sm:w-48 text-xs pr-6"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2 top-2 text-muted-foreground hover:text-foreground cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Type Filter Select */}
+            <div className="w-[110px]">
+              <Select
+                value={typeFilter}
+                onValueChange={(val) => val && setTypeFilter(val as 'all' | 'income' | 'expense')}
+              >
+                <SelectTrigger className="w-full h-8 text-xs font-medium bg-background">
+                  <SelectValue placeholder="All" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="income">Income</SelectItem>
+                  <SelectItem value="expense">Expense</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Quick Sort Select */}
+            <div className="w-[145px]">
+              <Select
+                value={`${sortField}-${sortOrder}`}
+                onValueChange={(val) => {
+                  if (val) {
+                    const [f, o] = val.split('-') as ['date' | 'amount' | 'category', 'asc' | 'desc']
+                    setSortField(f)
+                    setSortOrder(o)
+                  }
+                }}
+              >
+                <SelectTrigger className="w-full h-8 text-xs font-medium bg-background">
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="date-desc">Newest First</SelectItem>
+                  <SelectItem value="date-asc">Oldest First</SelectItem>
+                  <SelectItem value="amount-desc">Amount: High-Low</SelectItem>
+                  <SelectItem value="amount-asc">Amount: Low-High</SelectItem>
+                  <SelectItem value="category-asc">Category: A-Z</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <Button variant="outline" size="sm" className="h-8 text-xs gap-1 px-2.5" onClick={exportCSV}>
               <Download className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">CSV</span>
@@ -352,13 +457,52 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
         <CardContent className="p-4 sm:p-6 pt-0">
           <div className="rounded-md border overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-muted/50 border-b font-medium text-muted-foreground">
+              <thead className="bg-muted/50 border-b font-medium text-muted-foreground select-none">
                 <tr>
-                  <th className="p-2.5 sm:p-3">Category</th>
-                  <th className="p-2.5 sm:p-3">Type</th>
-                  <th className="p-2.5 sm:p-3">Date</th>
-                  <th className="p-2.5 sm:p-3 text-right">Amount</th>
-                  <th className="p-2.5 sm:p-3 text-right">Actions</th>
+                  <th className="p-2.5 sm:p-3">
+                    <button
+                      type="button"
+                      className="flex items-center gap-1 font-semibold text-foreground/80 hover:text-foreground cursor-pointer"
+                      onClick={() => handleSortToggle('category')}
+                    >
+                      Category
+                      {sortField === 'category' ? (
+                        sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 text-primary" /> : <ArrowDown className="w-3 h-3 text-primary" />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 text-muted-foreground/60" />
+                      )}
+                    </button>
+                  </th>
+                  <th className="p-2.5 sm:p-3 font-semibold text-muted-foreground">Type</th>
+                  <th className="p-2.5 sm:p-3">
+                    <button
+                      type="button"
+                      className="flex items-center gap-1 font-semibold text-foreground/80 hover:text-foreground cursor-pointer"
+                      onClick={() => handleSortToggle('date')}
+                    >
+                      Date
+                      {sortField === 'date' ? (
+                        sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 text-primary" /> : <ArrowDown className="w-3 h-3 text-primary" />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 text-muted-foreground/60" />
+                      )}
+                    </button>
+                  </th>
+                  <th className="p-2.5 sm:p-3 text-right">
+                    <button
+                      type="button"
+                      className="inline-flex items-center justify-end gap-1 font-semibold text-foreground/80 hover:text-foreground cursor-pointer ml-auto"
+                      onClick={() => handleSortToggle('amount')}
+                    >
+                      Amount
+                      {sortField === 'amount' ? (
+                        sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 text-primary" /> : <ArrowDown className="w-3 h-3 text-primary" />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 text-muted-foreground/60" />
+                      )}
+                    </button>
+                  </th>
+                  <th className="p-2.5 sm:p-3 text-right font-semibold text-muted-foreground">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y">

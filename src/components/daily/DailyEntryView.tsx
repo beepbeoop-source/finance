@@ -3,8 +3,25 @@ import type { Transaction, TransactionType } from '@/types/finance'
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { formatINR } from '@/lib/utils'
-import { ArrowDownLeft, ArrowUpRight, Plus, Save, Calendar } from 'lucide-react'
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  Plus,
+  Save,
+  Calendar,
+  Search,
+  X,
+  Filter,
+} from 'lucide-react'
 
 interface DailyEntryViewProps {
   records: Transaction[]
@@ -25,6 +42,11 @@ export const DailyEntryView: React.FC<DailyEntryViewProps> = ({
 
   // State of inputs for this date: key is `${type}-${category}`
   const [amounts, setAmounts] = useState<Record<string, string>>({})
+
+  // Category search and sort
+  const [searchTerm, setSearchTerm] = useState('')
+  const [sortBy, setSortBy] = useState<string>('default')
+  const [onlyEntered, setOnlyEntered] = useState(false)
 
   // When date or records change, pre-populate amounts
   useEffect(() => {
@@ -60,9 +82,59 @@ export const DailyEntryView: React.FC<DailyEntryViewProps> = ({
     }, 0)
   }, [categories.expense, amounts])
 
+  // Count entered
+  const enteredIncomeCount = useMemo(() => {
+    return categories.income.filter((c) => Number(amounts[`income-${c}`] || 0) > 0).length
+  }, [categories.income, amounts])
+
+  const enteredExpenseCount = useMemo(() => {
+    return categories.expense.filter((c) => Number(amounts[`expense-${c}`] || 0) > 0).length
+  }, [categories.expense, amounts])
+
+  // Process category lists with filter and sort
+  const processCategories = (list: string[], type: TransactionType) => {
+    let result = [...list]
+
+    // Search filter
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase()
+      result = result.filter((c) => c.toLowerCase().includes(q))
+    }
+
+    // Only entered filter
+    if (onlyEntered) {
+      result = result.filter((c) => Number(amounts[`${type}-${c}`] || 0) > 0)
+    }
+
+    // Sort
+    if (sortBy === 'name-asc') {
+      result.sort((a, b) => a.localeCompare(b))
+    } else if (sortBy === 'name-desc') {
+      result.sort((a, b) => b.localeCompare(a))
+    } else if (sortBy === 'has-value') {
+      result.sort((a, b) => {
+        const valA = Number(amounts[`${type}-${a}`] || 0)
+        const valB = Number(amounts[`${type}-${b}`] || 0)
+        return valB - valA
+      })
+    }
+
+    return result
+  }
+
+  const filteredIncomeCategories = useMemo(
+    () => processCategories(categories.income, 'income'),
+    [categories.income, searchTerm, onlyEntered, sortBy, amounts]
+  )
+
+  const filteredExpenseCategories = useMemo(
+    () => processCategories(categories.expense, 'expense'),
+    [categories.expense, searchTerm, onlyEntered, sortBy, amounts]
+  )
+
   const handleSave = () => {
     const entries: { type: TransactionType; category: string; amount: number }[] = []
-    
+
     // Income
     categories.income.forEach((cat) => {
       const num = Number(amounts[`income-${cat}`] || 0)
@@ -107,6 +179,56 @@ export const DailyEntryView: React.FC<DailyEntryViewProps> = ({
         </div>
       </div>
 
+      {/* Category Search & Filter Toolbar */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 rounded-lg border bg-card shadow-xs">
+        <div className="relative w-full sm:w-72">
+          <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
+          <Input
+            placeholder="Search category to enter..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="h-8 pl-8 pr-7 text-xs w-full bg-background"
+          />
+          {searchTerm && (
+            <button
+              type="button"
+              onClick={() => setSearchTerm('')}
+              className="absolute right-2 top-2 text-muted-foreground hover:text-foreground cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+          {/* Toggle only entered */}
+          <Button
+            variant={onlyEntered ? 'default' : 'outline'}
+            size="sm"
+            className="h-8 text-xs gap-1.5"
+            onClick={() => setOnlyEntered((prev) => !prev)}
+          >
+            <Filter className="w-3 h-3" />
+            {onlyEntered ? 'Showing Entered' : 'Filter: All'}
+          </Button>
+
+          {/* Sort Categories */}
+          <div className="w-[170px]">
+            <Select value={sortBy} onValueChange={(val) => val && setSortBy(val)}>
+              <SelectTrigger className="w-full h-8 text-xs font-medium bg-background">
+                <SelectValue placeholder="Sort categories" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">Default Order</SelectItem>
+                <SelectItem value="has-value">Entered Values First</SelectItem>
+                <SelectItem value="name-asc">Alphabetical (A-Z)</SelectItem>
+                <SelectItem value="name-desc">Alphabetical (Z-A)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+
       {/* Two Columns: Income & Expense */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Income Sources Panel */}
@@ -117,6 +239,9 @@ export const DailyEntryView: React.FC<DailyEntryViewProps> = ({
                 <ArrowUpRight className="w-3.5 h-3.5" />
               </div>
               <CardTitle className="text-sm font-semibold">Income Sources</CardTitle>
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                {enteredIncomeCount} of {categories.income.length} entered
+              </Badge>
             </div>
             <Button
               variant="outline"
@@ -130,7 +255,7 @@ export const DailyEntryView: React.FC<DailyEntryViewProps> = ({
           </CardHeader>
 
           <CardContent className="p-4 flex-1 space-y-3 max-h-[500px] overflow-y-auto">
-            {categories.income.map((cat) => (
+            {filteredIncomeCategories.map((cat) => (
               <div
                 key={cat}
                 className="flex items-center justify-between gap-3 p-2 rounded-lg hover:bg-muted/40 transition-colors"
@@ -155,9 +280,11 @@ export const DailyEntryView: React.FC<DailyEntryViewProps> = ({
                 </div>
               </div>
             ))}
-            {categories.income.length === 0 && (
+            {filteredIncomeCategories.length === 0 && (
               <div className="text-center py-6 text-xs text-muted-foreground">
-                No income categories added yet. Click "+ Add Source" to create one.
+                {searchTerm || onlyEntered
+                  ? 'No income categories match your filter.'
+                  : 'No income categories added yet. Click "+ Add Source" to create one.'}
               </div>
             )}
           </CardContent>
@@ -178,6 +305,9 @@ export const DailyEntryView: React.FC<DailyEntryViewProps> = ({
                 <ArrowDownLeft className="w-3.5 h-3.5" />
               </div>
               <CardTitle className="text-sm font-semibold">Expense Categories</CardTitle>
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                {enteredExpenseCount} of {categories.expense.length} entered
+              </Badge>
             </div>
             <Button
               variant="outline"
@@ -191,7 +321,7 @@ export const DailyEntryView: React.FC<DailyEntryViewProps> = ({
           </CardHeader>
 
           <CardContent className="p-4 flex-1 space-y-3 max-h-[500px] overflow-y-auto">
-            {categories.expense.map((cat) => (
+            {filteredExpenseCategories.map((cat) => (
               <div
                 key={cat}
                 className="flex items-center justify-between gap-3 p-2 rounded-lg hover:bg-muted/40 transition-colors"
@@ -216,9 +346,11 @@ export const DailyEntryView: React.FC<DailyEntryViewProps> = ({
                 </div>
               </div>
             ))}
-            {categories.expense.length === 0 && (
+            {filteredExpenseCategories.length === 0 && (
               <div className="text-center py-6 text-xs text-muted-foreground">
-                No expense categories added yet. Click "+ Add Category" to create one.
+                {searchTerm || onlyEntered
+                  ? 'No expense categories match your filter.'
+                  : 'No expense categories added yet. Click "+ Add Category" to create one.'}
               </div>
             )}
           </CardContent>

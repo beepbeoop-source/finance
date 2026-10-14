@@ -6,11 +6,12 @@ import {
   FileSpreadsheet,
   Building2,
   Tags,
-  Cloud,
+  Users,
   CheckCircle2,
   AlertCircle,
   LogOut,
-  ShieldCheck
+  ShieldCheck,
+  UserCheck
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -44,7 +45,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'categories', label: 'Categories', icon: Tags },
     { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
     { id: 'company', label: 'Company Details', icon: Building2 },
-    { id: 'settings', label: 'Cloud & Supabase', icon: Cloud },
+    { id: 'settings', label: user?.role === 'admin' ? 'Settings & Users' : 'Settings', icon: Users },
   ]
 
   const handleNavClick = (id: string) => {
@@ -117,23 +118,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {user && (
             <div className="flex items-center justify-between p-2 rounded-lg bg-muted/40 border">
               <div className="flex items-center gap-2 overflow-hidden">
-                <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
-                  {user.displayName[0]?.toUpperCase() || 'A'}
+                <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
+                  {user.displayName[0]?.toUpperCase() || 'U'}
                 </div>
                 <div className="truncate text-left">
                   <div className="text-xs font-semibold truncate leading-tight">
                     {user.displayName}
                   </div>
                   <div className="text-[10px] text-muted-foreground flex items-center gap-1">
-                    <ShieldCheck className="w-2.5 h-2.5 text-emerald-500" />
-                    Admin
+                    {user.role === 'admin' ? (
+                      <>
+                        <ShieldCheck className="w-2.5 h-2.5 text-emerald-500" />
+                        Administrator
+                      </>
+                    ) : (
+                      <>
+                        <UserCheck className="w-2.5 h-2.5 text-blue-500" />
+                        Staff Member
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
                 title="Log out"
                 onClick={onLogout}
               >
@@ -160,7 +170,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               )}
             </div>
             <p className="text-[10px] text-muted-foreground leading-relaxed">
-              <strong>{recordCount} total entries</strong> ready and active.
+              <strong>{recordCount} total entries</strong> in cloud database.
             </p>
           </div>
 

@@ -49,6 +49,10 @@ export function App() {
     isLoading: isAuthLoading,
     login,
     adminCreateUser,
+    adminChangePassword,
+    adminDeleteUser,
+    adminUpdateUserRole,
+    changeMyPassword,
     fetchUsersList,
     logout
   } = useAuth()
@@ -95,7 +99,7 @@ export function App() {
     )
   }
 
-  // If unauthenticated, show Administrator Login only
+  // If unauthenticated, show Sign In
   if (!isAuthenticated) {
     return (
       <>
@@ -168,6 +172,7 @@ export function App() {
                 <TransactionsView
                   records={records}
                   filter={dateFilter}
+                  categories={categories}
                   onEditEntry={handleEditEntry}
                   onDeleteEntry={deleteTransaction}
                 />
@@ -201,13 +206,18 @@ export function App() {
 
               {currentPage === 'settings' && (
                 <SettingsView
+                  currentUserProfile={user}
+                  isAdmin={isAdmin}
                   onPushToCloud={pushToSupabase}
                   onFetchFromCloud={fetchFromSupabase}
                   syncStatus={syncStatus}
                   isSyncing={isSyncing}
                   recordCount={records.length}
-                  isAdmin={isAdmin}
                   onAdminCreateUser={adminCreateUser}
+                  onAdminChangePassword={adminChangePassword}
+                  onAdminDeleteUser={adminDeleteUser}
+                  onAdminUpdateUserRole={adminUpdateUserRole}
+                  onChangeMyPassword={changeMyPassword}
                   onFetchUsers={fetchUsersList}
                 />
               )}

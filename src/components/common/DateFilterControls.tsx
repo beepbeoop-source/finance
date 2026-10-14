@@ -1,6 +1,13 @@
 import React from 'react'
 import type { DateFilterConfig } from '@/types/finance'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 interface DateFilterControlsProps {
   filter: DateFilterConfig
@@ -10,18 +17,25 @@ interface DateFilterControlsProps {
 export const DateFilterControls: React.FC<DateFilterControlsProps> = ({ filter, onChange }) => {
   return (
     <div className="flex items-center gap-1.5 bg-card/95 p-1 rounded-lg border shadow-xs text-xs">
-      <select
-        value={filter.mode}
-        onChange={(e) => {
-          const mode = e.target.value as 'month' | 'range'
-          onChange({ ...filter, mode })
-        }}
-        className="h-7 sm:h-8 rounded-md border border-input bg-background px-2 text-[11px] sm:text-xs font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer"
-        aria-label="Date filter mode"
-      >
-        <option value="month">Monthly</option>
-        <option value="range">Range</option>
-      </select>
+      <div className="w-[85px] sm:w-[95px]">
+        <Select
+          value={filter.mode}
+          onValueChange={(val) => {
+            if (val) {
+              const mode = val as 'month' | 'range'
+              onChange({ ...filter, mode })
+            }
+          }}
+        >
+          <SelectTrigger className="h-7 sm:h-8 text-[11px] sm:text-xs font-medium bg-background px-2">
+            <SelectValue placeholder="Mode" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="month">Monthly</SelectItem>
+            <SelectItem value="range">Range</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
       {filter.mode === 'month' ? (
         <Input
